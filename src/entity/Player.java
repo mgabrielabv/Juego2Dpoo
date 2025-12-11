@@ -43,6 +43,7 @@ public class Player extends Entity {
         e.printStackTrace();
     }
     }
+    // Helper: try classpath resource, then try multiple disk locations and searching parent dirs
     private BufferedImage loadImage(String resourcePath, String diskRelativePath) {
         try {
             java.io.InputStream is = getClass().getResourceAsStream(resourcePath);
@@ -51,26 +52,58 @@ public class Player extends Entity {
                 is.close();
                 return img;
             }
+            java.net.URL url = getClass().getResource(resourcePath);
+            if (url != null) {
+                return ImageIO.read(url);
+            }
         } catch (Exception ignored) {
         }
 
-        try {
-            java.io.File fileFromCwd = new java.io.File(System.getProperty("user.dir"), diskRelativePath.replace('/', java.io.File.separatorChar));
-            if (fileFromCwd.exists()) {
-                return ImageIO.read(fileFromCwd);
-            }
-            java.io.File fileDirect = new java.io.File(diskRelativePath);
-            if (fileDirect.exists()) {
-                return ImageIO.read(fileDirect);
-            }
-        } catch (Exception e) {
+        // 2) try several likely disk locations relative to working directory
+        String cwd = System.getProperty("user.dir");
+        String[] candidates = new String[] {
+                diskRelativePath,
+                // common project layouts
+                "src/res/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
+                "res/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
+                "src/" + resourcePath.substring(1),
+                "res/" + resourcePath.substring(1),
+                "player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
+                // IntelliJ output location
+                "out/production/2Djavavideogame/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
+                "out/production/2Djavavideogame/res/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1)
+        };
+
+        for (String candidate : candidates) {
+            try {
+                java.io.File f = new java.io.File(cwd, candidate.replace('/', java.io.File.separatorChar));
+                if (f.exists()) {
+                    return ImageIO.read(f);
+                }
+            } catch (Exception ignored) {}
         }
 
-        System.err.println("Resource not found (classpath & disk): " + resourcePath + "  (tried disk: " + diskRelativePath + ")");
+        // 3) search upwards from cwd for the relative path (covers running from subfolders)
+        String[] searchRelatives = new String[] {"src/res/player/","res/player/","player/"};
+        java.io.File dir = new java.io.File(cwd);
+        while (dir != null) {
+            for (String relBase : searchRelatives) {
+                java.io.File tryFile = new java.io.File(dir, relBase + resourcePath.substring(resourcePath.lastIndexOf('/')+1));
+                try {
+                    if (tryFile.exists()) {
+                        return ImageIO.read(tryFile);
+                    }
+                } catch (Exception ignored) {}
+            }
+            dir = dir.getParentFile();
+        }
+
+        System.err.println("Resource not found (classpath & disk): " + resourcePath + "  (tried cwd='" + cwd + "')");
         return null;
     }
 
     public void update() {
+
         if (keyH.upPressed)
         {
             direction="up";
