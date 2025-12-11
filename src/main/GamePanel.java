@@ -4,7 +4,7 @@ import java.awt.*;
 import entity.Player;
 
 public class GamePanel extends JPanel implements Runnable  {
-     //SCreen SETTINGS
+
         final int originalTileSize=16; //16x16 tile
         final int scale=3;
 
@@ -18,7 +18,6 @@ public class GamePanel extends JPanel implements Runnable  {
     Thread gameThread;
     Player player=new Player(this,keyH);
 
-    //set players default position
     int playerX=100;
     int playerY=100;
     int playerSpeed=4;
@@ -38,7 +37,7 @@ public class GamePanel extends JPanel implements Runnable  {
 
     @Override
     public void run() {
-        double drawInterval = 1000000000 / FPS;
+        double drawInterval = 1000000000.0 / FPS;
         double nextDrawTime = System.nanoTime() + drawInterval;
         
         while (gameThread != null) {
