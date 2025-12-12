@@ -6,8 +6,6 @@ import javax.swing.SwingUtilities;
 public class main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            System.out.println("[main] Iniciando juego en EDT");
-
             JFrame window = new JFrame();
             window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             window.setResizable(false);
@@ -22,8 +20,6 @@ public class main {
 
             gamePanel.requestFocusInWindow();
             gamePanel.startGameThread();
-
-            System.out.println("[main] Ventana visible y juego iniciado");
         });
     }
 }

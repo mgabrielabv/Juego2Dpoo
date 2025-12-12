@@ -2,15 +2,20 @@ package tile;
 
 import main.GamePanel;
 import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
 import java.awt.*;
-import java.io.File;
+import java.util.Random;
+import java.util.Stack;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class TileManager {
     GamePanel gp;
-    private Tile[] tiles;
+    private final Tile[] tiles;
     public int[][] map;
     public int exitRow, exitCol;
+
+    private static final long MAZE_SEED = 12345L;
 
     public TileManager(GamePanel gp) {
         this.gp = gp;
@@ -20,15 +25,11 @@ public class TileManager {
     }
 
     public int getOffsetX() {
-        if (map == null || map[0].length == 0) return 0;
-        int mapWidth = map[0].length * gp.tileSize;
-        return (gp.screenWidth - mapWidth) / 2;
+        return 0;
     }
 
     public int getOffsetY() {
-        if (map == null || map.length == 0) return 0;
-        int mapHeight = map.length * gp.tileSize;
-        return (gp.screenHeight - mapHeight) / 2;
+        return 0;
     }
 
     public int screenToMapCol(int screenX) {
@@ -63,7 +64,17 @@ public class TileManager {
             tiles[3].collision = false;
             tiles[3].type = "exit";
 
-            for (int i = 0; i < 4; i++) {
+            tiles[4] = new Tile();
+            tiles[4].image = loadTileImage("key");
+            tiles[4].collision = false;
+            tiles[4].type = "key";
+
+            tiles[5] = new Tile();
+            tiles[5].image = loadTileImage("door");
+            tiles[5].collision = false;
+            tiles[5].type = "door";
+
+            for (int i = 0; i < 6; i++) {
                 if (tiles[i] == null) tiles[i] = new Tile();
                 if (tiles[i].image == null) {
                     createPlaceholderTile(i);
@@ -71,7 +82,6 @@ public class TileManager {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -110,34 +120,77 @@ public class TileManager {
                 g.setFont(new Font("Arial", Font.BOLD, 12));
                 g.drawString("EXIT", 5, gp.tileSize/2 + 4);
                 break;
+            case 4:
+                g.setColor(new Color(200, 180, 120));
+                g.fillRect(0, 0, gp.tileSize, gp.tileSize);
+                g.setColor(new Color(180, 150, 60));
+                g.fillOval(gp.tileSize/4, gp.tileSize/4, gp.tileSize/2, gp.tileSize/2);
+                g.setColor(Color.BLACK);
+                g.drawLine(gp.tileSize/2, gp.tileSize/2, gp.tileSize - 4, gp.tileSize/2);
+                g.drawString("KEY", 4, gp.tileSize - 4);
+                break;
+            case 5:
+                g.setColor(new Color(120, 80, 40));
+                g.fillRect(0, 0, gp.tileSize, gp.tileSize);
+                g.setColor(new Color(90, 60, 30));
+                g.fillRect(2, 2, gp.tileSize-4, gp.tileSize-4);
+                g.setColor(Color.YELLOW);
+                g.fillOval(gp.tileSize - 8, gp.tileSize/2 - 4, 6, 6);
+                g.setColor(Color.WHITE);
+                g.drawString("DOOR", 2, gp.tileSize - 4);
+                break;
         }
-
         g.dispose();
         tiles[index].image = placeholder;
     }
 
     public void generateMaze() {
-        int baseSize = 15;
-        int sizeIncrease = (gp.currentLevel - 1) * 5;
-        int mazeSize = baseSize + sizeIncrease;
+        int mazeRows = gp.maxScreenRow;
+        int mazeCols = gp.maxScreenCol;
 
-        map = new int[mazeSize][mazeSize];
+        if (gp.currentLevel == 2) {
+            map = new int[][] {
+                {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2},
+                {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2},
+                {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2},
+                {2,0,2,2,0,2,2,0,2,2,0,2,2,0,0,2},
+                {2,0,2,2,0,2,2,0,2,2,0,2,2,0,0,2},
+                {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2},
+                {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2},
+                {2,0,2,2,0,2,2,0,2,2,0,2,2,0,0,2},
+                {2,0,2,2,0,2,2,0,2,2,0,2,2,0,0,2},
+                {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2},
+                {2,0,0,0,0,0,0,0,0,0,0,0,0,5,0,2},
+                {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2}
+            };
+            exitRow = 10;
+            exitCol = 13;
+            map[exitRow][exitCol] = 5;
+            map[1][1] = 0;
+            map[1][2] = 0;
+            map[2][1] = 0;
+            map[exitRow][exitCol-1] = 0;
+            map[exitRow-1][exitCol] = 0;
+            return;
+        }
 
-        for (int r = 0; r < mazeSize; r++) {
-            for (int c = 0; c < mazeSize; c++) {
+        map = new int[mazeRows][mazeCols];
+
+        for (int r = 0; r < mazeRows; r++) {
+            for (int c = 0; c < mazeCols; c++) {
                 map[r][c] = 2;
             }
         }
 
-        java.util.Random rand = new java.util.Random();
-        java.util.Stack<int[]> stack = new java.util.Stack<>();
+        Random rand = new Random(MAZE_SEED + gp.currentLevel);
+        Stack<int[]> stack = new Stack<>();
 
         int startRow = 1;
         int startCol = 1;
         map[startRow][startCol] = 0;
 
         stack.push(new int[]{startRow, startCol});
-        boolean[][] visited = new boolean[mazeSize][mazeSize];
+        boolean[][] visited = new boolean[mazeRows][mazeCols];
         visited[startRow][startCol] = true;
 
         int[][] directions = {{-2, 0}, {2, 0}, {0, -2}, {0, 2}};
@@ -147,12 +200,12 @@ public class TileManager {
             int r = current[0];
             int c = current[1];
 
-            java.util.ArrayList<int[]> neighbors = new java.util.ArrayList<>();
+            ArrayList<int[]> neighbors = new ArrayList<>();
             for (int[] dir : directions) {
                 int nr = r + dir[0];
                 int nc = c + dir[1];
 
-                if (nr > 0 && nr < mazeSize - 1 && nc > 0 && nc < mazeSize - 1 && !visited[nr][nc]) {
+                if (nr > 0 && nr < mazeRows - 1 && nc > 0 && nc < mazeCols - 1 && !visited[nr][nc]) {
                     neighbors.add(new int[]{nr, nc, dir[0], dir[1]});
                 }
             }
@@ -174,43 +227,22 @@ public class TileManager {
             }
         }
 
-        int extraPaths = gp.currentLevel * 10;
-        for (int i = 0; i < extraPaths; i++) {
-            int r = rand.nextInt(mazeSize - 2) + 1;
-            int c = rand.nextInt(mazeSize - 2) + 1;
-            if (map[r][c] == 2) {
-                int pathNeighbors = 0;
-                if (r > 0 && map[r-1][c] == 0) pathNeighbors++;
-                if (r < mazeSize-1 && map[r+1][c] == 0) pathNeighbors++;
-                if (c > 0 && map[r][c-1] == 0) pathNeighbors++;
-                if (c < mazeSize-1 && map[r][c+1] == 0) pathNeighbors++;
+        map[2][1] = 0;
+        map[1][2] = 0;
 
-                if (pathNeighbors >= 2) {
-                    map[r][c] = 0;
-                }
-            }
-        }
-
-        exitRow = mazeSize - 2;
-        exitCol = mazeSize - 2;
-        map[exitRow][exitCol] = 3;
+        exitRow = mazeRows - 2;
+        exitCol = mazeCols - 2;
+        map[exitRow][exitCol] = (gp.currentLevel == 1) ? 4 : 5;
 
         ensurePathToExit(startRow, startCol, exitRow, exitCol);
 
-        int openCells = 0;
-        for (int r = 0; r < mazeSize; r++) {
-            for (int c = 0; c < mazeSize; c++) {
-                if (map[r][c] == 0 || map[r][c] == 3) openCells++;
-            }
-        }
-        System.out.println("Laberinto generado: " + mazeSize + "x" + mazeSize +
-                ", Celdas abiertas: " + openCells +
-                ", Nivel: " + gp.currentLevel);
+        map[1][1] = 0;
+        map[exitRow][exitCol] = (gp.currentLevel == 1) ? 4 : 5;
     }
 
     private void ensurePathToExit(int startRow, int startCol, int exitRow, int exitCol) {
         boolean[][] visited = new boolean[map.length][map[0].length];
-        java.util.Queue<int[]> queue = new java.util.LinkedList<>();
+        Queue<int[]> queue = new LinkedList<>();
         queue.add(new int[]{startRow, startCol});
         visited[startRow][startCol] = true;
 
@@ -232,7 +264,7 @@ public class TileManager {
                 int nc = c + dir[1];
 
                 if (nr >= 0 && nr < map.length && nc >= 0 && nc < map[0].length) {
-                    if (!visited[nr][nc] && (map[nr][nc] == 0 || map[nr][nc] == 3)) {
+                    if (!visited[nr][nc] && (map[nr][nc] == 0 || map[nr][nc] == 3 || map[nr][nc] == 4 || map[nr][nc] == 5)) {
                         visited[nr][nc] = true;
                         queue.add(new int[]{nr, nc});
                     }
@@ -241,7 +273,6 @@ public class TileManager {
         }
 
         if (!pathExists) {
-            System.out.println("Creando camino forzado a la salida...");
             int r = startRow, c = startCol;
             while (r != exitRow || c != exitCol) {
                 if (r < exitRow) r++;
@@ -249,7 +280,7 @@ public class TileManager {
                 else if (c < exitCol) c++;
                 else if (c > exitCol) c--;
 
-                if (r >= 0 && r < map.length && c >= 0 && c < map[0].length) {
+                if ((r != exitRow || c != exitCol) && (r != startRow || c != startCol)) {
                     map[r][c] = 0;
                 }
             }
@@ -260,48 +291,29 @@ public class TileManager {
         generateMaze();
     }
 
-    private BufferedImage loadTileImage(String baseName) {
-        String[] extensions = {".png", ".jpg", ".jpeg", ".gif"};
-
-        for (String ext : extensions) {
-            String path = "/tiles/" + baseName + ext;
-            try {
-                java.io.InputStream is = getClass().getResourceAsStream(path);
-                if (is != null) {
-                    BufferedImage img = ImageIO.read(is);
-                    is.close();
-                    return img;
-                }
-            } catch (Exception ignored) {}
-        }
-
-        String[] searchPaths = {
-                "src/res/tiles/",
-                "res/tiles/",
-                "tiles/",
-                "src/tiles/",
-                "resources/tiles/"
-        };
-
-        String cwd = System.getProperty("user.dir");
-        for (String path : searchPaths) {
-            for (String ext : extensions) {
-                File file = new File(cwd, path + baseName + ext);
-                if (file.exists()) {
-                    try {
-                        return ImageIO.read(file);
-                    } catch (Exception ignored) {}
+    private java.awt.image.BufferedImage loadTileImage(String name) {
+        try {
+            String[] exts = {".png", ".jpg"};
+            java.awt.image.BufferedImage img = null;
+            for (String ext : exts) {
+                String path = "/res/tiles/" + name + ext;
+                try {
+                    img = javax.imageio.ImageIO.read(getClass().getResourceAsStream(path));
+                    if (img != null) {
+                        break;
+                    }
+                } catch (Exception e) {
                 }
             }
+            if (img == null) {
+            }
+            return img;
+        } catch (Exception e) {
+            return null;
         }
-
-        return null;
     }
 
     public void draw(Graphics2D g2) {
-        int screenCols = gp.screenWidth / gp.tileSize;
-        int screenRows = gp.screenHeight / gp.tileSize;
-
         int mapWidth = map[0].length * gp.tileSize;
         int mapHeight = map.length * gp.tileSize;
         int offsetX = (gp.screenWidth - mapWidth) / 2;
@@ -325,18 +337,18 @@ public class TileManager {
         }
     }
 
-    public boolean isCollision(int row, int col) {
-        if (row < 0 || row >= map.length || col < 0 || col >= map[0].length) {
-            return true;
+    public int getTileAt(int row, int col) {
+        if (map != null && row >= 0 && row < map.length && col >= 0 && col < map[0].length) {
+            return map[row][col];
         }
-        int tileNum = map[row][col];
-        return tileNum >= 0 && tileNum < tiles.length && tiles[tileNum] != null && tiles[tileNum].collision;
+        return -1;
     }
 
-    public int getTileAt(int row, int col) {
-        if (row < 0 || row >= map.length || col < 0 || col >= map[0].length) {
-            return -1;
+    public boolean isCollision(int row, int col) {
+        int tileNum = getTileAt(row, col);
+        if (tileNum >= 0 && tileNum < tiles.length && tiles[tileNum] != null) {
+            return tiles[tileNum].collision;
         }
-        return map[row][col];
+        return true;
     }
 }

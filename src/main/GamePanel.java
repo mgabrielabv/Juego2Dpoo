@@ -11,8 +11,8 @@ public class GamePanel extends JPanel implements Runnable {
     final int originalTileSize = 16;
     final int scale = 3;
     public final int tileSize = originalTileSize * scale;
-    final int maxScreenCol = 16;
-    final int maxScreenRow = 12;
+    public final int maxScreenCol = 16;
+    public final int maxScreenRow = 12;
     public final int screenWidth = tileSize * maxScreenCol;
     public final int screenHeight = tileSize * maxScreenRow;
     int FPS = 60;
@@ -23,6 +23,7 @@ public class GamePanel extends JPanel implements Runnable {
     public final int PAUSE_STATE = 2;
     public final int GAME_OVER_STATE = 3;
     public final int LEVEL_COMPLETE_STATE = 4;
+    public final int GAME_WON_STATE = 5;
 
     public TileManager tileM;
     KeyHandler keyH = new KeyHandler();
@@ -30,7 +31,8 @@ public class GamePanel extends JPanel implements Runnable {
     Player player;
     java.util.List<Enemy> enemies;
     public int currentLevel = 1;
-    private final int MAX_LEVELS = 3;
+    private final int MAX_LEVELS = 2;
+    public boolean hasKey = false;
     private int score = 0;
     private Font gameFont;
 
@@ -83,7 +85,6 @@ public class GamePanel extends JPanel implements Runnable {
                 for (int r = 0; r < rows; r++)
                     for (int c = 0; c < cols; c++)
                         if (tileM.map[r][c] == 0) open++;
-                System.out.println("GamePanel: " + rows + "x" + cols + " openCells=" + open);
             }
         } catch (Exception ignored) {}
     }
@@ -142,11 +143,12 @@ public class GamePanel extends JPanel implements Runnable {
                 }
                 player.update();
 
-                for (Enemy enemy : enemies) {
+                for (Enemy enemy : new java.util.ArrayList<>(enemies)) {
                     if (enemy.active) {
                         enemy.update(player);
                     }
                 }
+                enemies.removeIf(e -> !e.active);
 
                 checkLevelComplete();
                 break;
@@ -159,14 +161,15 @@ public class GamePanel extends JPanel implements Runnable {
                 break;
 
             case GAME_OVER_STATE:
+                if (keyH.enterPressed) {
+                    keyH.enterPressed = false;
+                    restartGame();
+                }
+                break;
             case LEVEL_COMPLETE_STATE:
                 if (keyH.enterPressed) {
                     keyH.enterPressed = false;
-                    if (gameState == GAME_OVER_STATE) {
-                        restartGame();
-                    } else {
-                        nextLevel();
-                    }
+                    nextLevel();
                 }
                 break;
         }
@@ -177,18 +180,28 @@ public class GamePanel extends JPanel implements Runnable {
         int playerRow = tileM.screenToMapRow(player.y + tileSize/2);
 
         if (playerCol == tileM.exitCol && playerRow == tileM.exitRow) {
-            score += 100 * currentLevel;
-            gameState = LEVEL_COMPLETE_STATE;
+            int tileAtExit = tileM.getTileAt(playerRow, playerCol);
+            if (currentLevel == 1 && tileAtExit == 4) {
+                hasKey = true;
+                score += 100 * currentLevel;
+                gameState = LEVEL_COMPLETE_STATE;
+            } else if (currentLevel == 2 && tileAtExit == 5) {
+                score += 200 * currentLevel;
+                gameState = GAME_WON_STATE;
+            } else {
+                score += 100 * currentLevel;
+                gameState = LEVEL_COMPLETE_STATE;
+            }
         }
     }
 
     private void startGame() {
         currentLevel = 1;
         score = 0;
-        player.reset();
         tileM.regenerateMaze();
+        player.setToStart();
+        hasKey = false;
         initializeEnemies();
-        System.out.println("startGame: enemies=" + enemies.size());
         gameState = PLAY_STATE;
         requestFocusInWindow();
     }
@@ -196,8 +209,9 @@ public class GamePanel extends JPanel implements Runnable {
     private void nextLevel() {
         if (currentLevel < MAX_LEVELS) {
             currentLevel++;
-            player.reset();
             tileM.regenerateMaze();
+            player.setToStart();
+            hasKey = false;
             initializeEnemies();
             gameState = PLAY_STATE;
         } else {
@@ -207,8 +221,9 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void restartGame() {
-        player.reset();
         tileM.regenerateMaze();
+        player.setToStart();
+        hasKey = false;
         initializeEnemies();
         gameState = PLAY_STATE;
         requestFocusInWindow();
@@ -216,10 +231,9 @@ public class GamePanel extends JPanel implements Runnable {
 
     private void initializeEnemies() {
         enemies.clear();
+        Enemy.resetEnemySeed();
+        int enemyCount = (currentLevel == 2) ? 2 : 1;
 
-        int enemyCount = currentLevel + 1;
-
-        // Build list of open tiles (value == 0)
         java.util.List<int[]> openTiles = new java.util.ArrayList<>();
         if (tileM != null && tileM.map != null) {
             for (int r = 0; r < tileM.map.length; r++) {
@@ -229,139 +243,75 @@ public class GamePanel extends JPanel implements Runnable {
             }
         }
 
-        // DIAGNOSTIC: print map info and sample open tiles
-        try {
-            if (tileM != null && tileM.map != null) {
-                int rows = tileM.map.length;
-                int cols = tileM.map[0].length;
-                System.out.println("initializeEnemies DIAG: map=" + rows + "x" + cols + " exit=(" + tileM.exitCol + "," + tileM.exitRow + ") openTiles=" + openTiles.size());
-                int sample = Math.min(10, openTiles.size());
-                StringBuilder sb = new StringBuilder();
-                sb.append("open samples:");
-                for (int i = 0; i < sample; i++) {
-                    int[] t = openTiles.get(i);
-                    sb.append(" (" + t[0] + "," + t[1] + ")");
-                }
-                System.out.println(sb.toString());
-
-                // print small textual map preview (use '.' for open, '#' for wall, 'E' for exit)
-                int maxRows = Math.min(rows, 15);
-                int maxCols = Math.min(cols, 60);
-                for (int r = 0; r < maxRows; r++) {
-                    StringBuilder line = new StringBuilder();
-                    for (int c = 0; c < maxCols; c++) {
-                        int v = tileM.map[r][c];
-                        char ch = (v == 0) ? '.' : (v == 3) ? 'E' : '#';
-                        line.append(ch);
-                    }
-                    System.out.println("map[" + r + "]=" + line.toString());
-                }
-            } else {
-                System.out.println("initializeEnemies DIAG: tileM or tileM.map is null");
-            }
-        } catch (Exception ex) { ex.printStackTrace(); }
-
         int ox = (tileM != null) ? tileM.getOffsetX() : 0;
         int oy = (tileM != null) ? tileM.getOffsetY() : 0;
 
-        // Get player tile to avoid placing enemies on top of the player
-        int playerCol = -1000, playerRow = -1000;
-        try {
-            if (player != null && tileM != null) {
-                playerCol = tileM.screenToMapCol(player.x + tileSize/2);
-                playerRow = tileM.screenToMapRow(player.y + tileSize/2);
+        int playerStartRow = 1, playerStartCol = 1;
+        if (tileM != null && tileM.map != null) {
+            outer:
+            for (int r = 0; r < tileM.map.length; r++) {
+                for (int c = 0; c < tileM.map[0].length; c++) {
+                    if (tileM.map[r][c] == 0) {
+                        playerStartRow = r;
+                        playerStartCol = c;
+                        break outer;
+                    }
+                }
             }
-        } catch (Exception ignored) {}
+        }
+        int exitRow = (tileM != null) ? tileM.exitRow : -1;
+        int exitCol = (tileM != null) ? tileM.exitCol : -1;
 
-        java.util.Set<String> used = new java.util.HashSet<>();
-        int placed = 0;
-
-        // Deterministic selection: pick the first enemyCount valid open tiles in order
-        for (int i = 0; i < openTiles.size() && placed < enemyCount; i++) {
-            int[] t = openTiles.get(i);
+        java.util.List<int[]> validTiles = new java.util.ArrayList<>();
+        for (int[] t : openTiles) {
             int r = t[0], c = t[1];
-            if (tileM != null && r == tileM.exitRow && c == tileM.exitCol) continue;
-            if (r == playerRow && c == playerCol) continue;
-            String key = r + "_" + c;
-            if (used.contains(key)) continue;
-
-            Enemy enemy = new Enemy(this, placed);
-            enemy.x = ox + c * tileSize;
-            enemy.y = oy + r * tileSize;
-            enemies.add(enemy);
-            used.add(key);
-            placed++;
+            boolean nearPlayer = Math.abs(r - playerStartRow) <= 2 && Math.abs(c - playerStartCol) <= 2;
+            boolean isExit = (r == exitRow && c == exitCol);
+            if (!nearPlayer && !isExit) {
+                validTiles.add(t);
+            }
         }
 
-        // If we didn't place enough (e.g., openTiles < enemyCount or many excluded), try again deterministically
-        if (placed < enemyCount) {
-            if (openTiles.size() < enemyCount) {
-                System.out.println("initializeEnemies: WARNING insufficient open tiles (" + openTiles.size() + ") for enemyCount=" + enemyCount);
+        java.util.Collections.shuffle(validTiles, new java.util.Random(54321L));
+        int placed = 0;
+        if (currentLevel == 2 && enemyCount > 0) {
+            int[][] fixedPositions = { {5, 7}, {8, 12} };
+            for (int i = 0; i < fixedPositions.length && placed < enemyCount; i++) {
+                int r = fixedPositions[i][0], c = fixedPositions[i][1];
+                if (tileM.map[r][c] == 0) {
+                    Enemy enemy = new Enemy(this, placed);
+                    enemy.x = ox + c * tileSize;
+                    enemy.y = oy + r * tileSize;
+                    enemies.add(enemy);
+                    placed++;
+                }
             }
-            for (int i = 0; i < openTiles.size() && placed < enemyCount; i++) {
-                int[] t = openTiles.get(i);
-                String key = t[0] + "_" + t[1];
-                if (used.contains(key)) continue;
+        }
+        for (int i = 0; i < validTiles.size() && placed < enemyCount; i++) {
+            int[] t = validTiles.get(i);
+            int r = t[0], c = t[1];
+            boolean isFixed = (currentLevel == 2 && ((r == 5 && c == 7) || (r == 8 && c == 12)));
+            if (!isFixed) {
                 Enemy enemy = new Enemy(this, placed);
-                enemy.x = ox + t[1] * tileSize;
-                enemy.y = oy + t[0] * tileSize;
+                enemy.x = ox + c * tileSize;
+                enemy.y = oy + r * tileSize;
                 enemies.add(enemy);
-                used.add(key);
                 placed++;
             }
         }
-
-        // Last resort: if still not enough, create new enemies (they will place themselves using placeEnemy)
-        for (int i = placed; i < enemyCount; i++) {
-            Enemy enemy = new Enemy(this, i);
-
-            // determine the tile where the constructor placed it
-            int eCol = -1, eRow = -1;
-            try {
-                eCol = tileM.screenToMapCol(enemy.x + tileSize/2);
-                eRow = tileM.screenToMapRow(enemy.y + tileSize/2);
-            } catch (Exception ignored) {}
-
-            String key = eRow + "_" + eCol;
-            if (eCol >= 0 && eRow >= 0 && used.contains(key)) {
-                // find first free open tile and move enemy there
-                boolean moved = false;
-                for (int j = 0; j < openTiles.size(); j++) {
-                    int[] t = openTiles.get(j);
-                    String k2 = t[0] + "_" + t[1];
-                    if (used.contains(k2)) continue;
-                    enemy.x = ox + t[1] * tileSize;
-                    enemy.y = oy + t[0] * tileSize;
-                    used.add(k2);
-                    moved = true;
-                    break;
-                }
-                if (!moved) {
-                    // give the enemy its original placement anyway but avoid duplicate key add
-                    System.out.println("initializeEnemies: fallback enemy placed on used tile, no free tile to move");
-                }
-            } else {
-                if (eCol >= 0 && eRow >= 0) used.add(key);
-            }
-
-            enemies.add(enemy);
-            System.out.println("initializeEnemies: fallback created Enemy#" + i + " at tile=(" + eCol + "," + eRow + ")");
-        }
-
-        // DEBUG: report placed enemies and their tile positions
-        try {
-            System.out.println("initializeEnemies: requested=" + enemyCount + " placed=" + enemies.size());
-            for (int i = 0; i < enemies.size(); i++) {
-                Enemy e = enemies.get(i);
-                int col = tileM.screenToMapCol(e.x + tileSize/2);
-                int row = tileM.screenToMapRow(e.y + tileSize/2);
-                System.out.println("initializeEnemies: Enemy#" + i + " tile=(" + col + "," + row + ") pixel=(" + e.x + "," + e.y + ")");
-            }
-        } catch (Exception ex) { ex.printStackTrace(); }
     }
 
     public void gameOver() {
-        gameState = GAME_OVER_STATE;
+        if (currentLevel == 2) {
+            currentLevel = 1;
+            tileM.regenerateMaze();
+            player.reset();
+            hasKey = false;
+            initializeEnemies();
+            gameState = PLAY_STATE;
+        } else {
+            gameState = GAME_OVER_STATE;
+        }
     }
 
     @Override
@@ -394,6 +344,11 @@ public class GamePanel extends JPanel implements Runnable {
                 drawGameScreen(g2);
                 drawLevelCompleteScreen(g2);
                 break;
+
+            case GAME_WON_STATE:
+                drawGameScreen(g2);
+                drawGameWonScreen(g2);
+                break;
         }
 
         g2.dispose();
@@ -411,20 +366,6 @@ public class GamePanel extends JPanel implements Runnable {
         player.draw(g2);
 
         drawHUD(g2);
-
-        // DEBUG overlay: draw small dot + index over each enemy to make them visible easily
-        try {
-            g2.setFont(new Font("Arial", Font.BOLD, 12));
-            for (int i = 0; i < enemies.size(); i++) {
-                Enemy e = enemies.get(i);
-                int cx = e.x + tileSize / 2;
-                int cy = e.y + tileSize / 2;
-                g2.setColor(new Color(255, 0, 255, 180));
-                g2.fillOval(cx - 5, cy - 5, 10, 10);
-                g2.setColor(Color.WHITE);
-                g2.drawString("#" + i, cx + 8, cy + 4);
-            }
-        } catch (Exception ignored) {}
     }
 
     private void drawHUD(Graphics2D g2) {
@@ -576,6 +517,24 @@ public class GamePanel extends JPanel implements Runnable {
         }
         int nextX = (screenWidth - g2.getFontMetrics().stringWidth(nextText)) / 2;
         g2.drawString(nextText, nextX, completeY + 120);
+    }
+
+    private void drawGameWonScreen(Graphics2D g2) {
+        g2.setColor(new Color(0, 150, 0, 200));
+        g2.fillRect(0, 0, screenWidth, screenHeight);
+        g2.setColor(Color.WHITE);
+        Font winFont = new Font("Arial", Font.BOLD, 48);
+        g2.setFont(winFont);
+        String text = "¡SALISTE! GANASTE";
+        int x = (screenWidth - g2.getFontMetrics().stringWidth(text)) / 2;
+        int y = screenHeight / 2;
+        g2.drawString(text, x, y);
+
+        Font sc = new Font("Arial", Font.PLAIN, 24);
+        g2.setFont(sc);
+        String scoreText = "Puntaje final: " + score;
+        int sx = (screenWidth - g2.getFontMetrics().stringWidth(scoreText)) / 2;
+        g2.drawString(scoreText, sx, y + 50);
     }
 
     public int[][] getMap() {

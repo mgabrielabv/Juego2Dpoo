@@ -15,7 +15,6 @@ public class DebugRunner {
         } else {
             out = "DebugRunner: tileM or map is null";
         }
-        System.out.println(out);
         try (FileWriter fw = new FileWriter("src/debug_map.txt")){
             fw.write(out + System.lineSeparator());
         } catch (Exception e){

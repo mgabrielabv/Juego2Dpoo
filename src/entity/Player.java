@@ -46,23 +46,11 @@ public class Player extends Entity {
     }
 
     public void setToStart() {
-        try {
-            int[][] map = (gp != null) ? gp.getMap() : null;
-            if (map != null) {
-                for (int r = 0; r < map.length; r++) {
-                    for (int c = 0; c < map[0].length; c++) {
-                        if (map[r][c] == 0) {
-                            int ox = gp.getTileManager().getOffsetX();
-                            int oy = gp.getTileManager().getOffsetY();
-                            x = ox + c * gp.tileSize;
-                            y = oy + r * gp.tileSize;
-                            direction = "down";
-                            return;
-                        }
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
+        int ox = gp.getTileManager().getOffsetX();
+        int oy = gp.getTileManager().getOffsetY();
+        x = ox + 1 * gp.tileSize;
+        y = oy + 1 * gp.tileSize;
+        direction = "down";
     }
 
     public void getPlayerImage(){
@@ -153,7 +141,10 @@ public class Player extends Entity {
     }
 
     public void update() {
-
+        // No permitir movimiento si el jugador está en game over
+        if (lives <= 0 || gp.gameState == gp.GAME_OVER_STATE) {
+            return;
+        }
         int newX = x;
         int newY = y;
 
@@ -251,11 +242,19 @@ public class Player extends Entity {
     }
 
     public void takeDamage() {
-        lives--;
-        if (lives <= 0) {
-            gp.gameOver();
-        } else {
-            setToStart();
+        if (lives > 0) {
+            lives--;
+            if (lives <= 0) {
+                lives = 0;
+                gp.gameOver();
+            } else {
+                // Solo reiniciar la posición del jugador, NO cambiar el estado del juego
+                setToStart();
+                // Asegura que el estado siga en PLAY_STATE
+                if (gp.gameState != gp.PLAY_STATE) {
+                    gp.gameState = gp.PLAY_STATE;
+                }
+            }
         }
     }
 }
