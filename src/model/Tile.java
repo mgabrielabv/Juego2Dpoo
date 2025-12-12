@@ -1,8 +1,8 @@
-package tile;
+package model;
 
 import java.awt.image.BufferedImage;
 
-class Tile {
+public class Tile {
     public BufferedImage image;
     public boolean collision = false;
     public String type = "normal";

@@ -1,8 +1,7 @@
-package entity;
+package model;
 
-import main.GamePanel;
+import view.GamePanel;
 import java.awt.*;
-import tile.TileManager;
 
 public class Enemy extends Entity {
     GamePanel gp;
@@ -67,9 +66,10 @@ public class Enemy extends Entity {
         int playerCol = gp.getTileManager().screenToMapCol(player.x + gp.tileSize/2);
         int playerRow = gp.getTileManager().screenToMapRow(player.y + gp.tileSize/2);
         int distance = Math.abs(playerCol - enemyCol) + Math.abs(playerRow - enemyRow);
-        if (distance <= chaseRange && gp.currentLevel == 2) {
-            // Solo recalcular BFS cada 10 frames
-            if (bfsFrameCounter % 10 == 0) {
+
+        if (distance <= chaseRange) {
+            int bfsFrequency = (gp.currentLevel == 2) ? 10 : 30; // Nivel 1 es menos frecuente
+            if (bfsFrameCounter % bfsFrequency == 0) {
                 int[] step = chasePlayerBFSGetStep(player);
                 bfsNextDy = step[0];
                 bfsNextDx = step[1];
@@ -83,12 +83,16 @@ public class Enemy extends Entity {
                 else if (bfsNextDx == -1) direction = "left";
                 else if (bfsNextDy == 1) direction = "down";
                 else if (bfsNextDy == -1) direction = "up";
+            } else {
+                // Si el camino BFS está bloqueado, intenta un movimiento alternativo simple
+                // para no quedarse pegado. Esto es útil después de un respawn.
+                bfsFrameCounter = bfsFrequency; // Forzar recálculo de BFS en el siguiente frame
+                tryAlternativeMove();
             }
-        } else if (distance <= chaseRange) {
-            chasePlayerSmart(player);
         } else {
             patrol();
         }
+
         checkPlayerCollision(player);
         int mapWidth = gp.getMap()[0].length * gp.tileSize;
         int mapHeight = gp.getMap().length * gp.tileSize;
@@ -143,37 +147,33 @@ public class Enemy extends Entity {
         return new int[]{0,0};
     }
 
-    // Nueva IA mejorada para nivel 1: siempre intenta acercarse al jugador, probando todas las direcciones
-    private void chasePlayerSmart(Player player) {
-        int enemyCol = gp.getTileManager().screenToMapCol(x + gp.tileSize/2);
-        int enemyRow = gp.getTileManager().screenToMapRow(y + gp.tileSize/2);
-        int playerCol = gp.getTileManager().screenToMapCol(player.x + gp.tileSize/2);
-        int playerRow = gp.getTileManager().screenToMapRow(player.y + gp.tileSize/2);
-        int bestDist = Math.abs(playerCol - enemyCol) + Math.abs(playerRow - enemyRow);
-        int bestDx = 0, bestDy = 0;
-        int[][] dirs = {{1,0},{-1,0},{0,1},{0,-1}};
-        for (int[] d : dirs) {
-            int tCol = enemyCol + d[0];
-            int tRow = enemyRow + d[1];
-            if (canMoveTile(tCol, tRow)) {
-                int dist = Math.abs(playerCol - tCol) + Math.abs(playerRow - tRow);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestDx = d[0];
-                    bestDy = d[1];
-                }
-            }
-        }
-        if (bestDx != 0 || bestDy != 0) {
-            int newX = x + bestDx * speed;
-            int newY = y + bestDy * speed;
+    /**
+     * Intenta moverse en una dirección perpendicular a la bloqueada para evitar atascos.
+     */
+    private void tryAlternativeMove() {
+        int originalDx = bfsNextDx;
+        int originalDy = bfsNextDy;
+
+        // Intentar movimiento perpendicular
+        int altDx = -originalDy;
+        int altDy = originalDx;
+
+        for (int i = 0; i < 2; i++) {
+            int newX = x + altDx * speed;
+            int newY = y + altDy * speed;
             if (!checkCollision(newX, newY)) {
-                x = newX; y = newY;
-                if (bestDx == 1) direction = "right";
-                else if (bestDx == -1) direction = "left";
-                else if (bestDy == 1) direction = "down";
-                else if (bestDy == -1) direction = "up";
+                x = newX;
+                y = newY;
+                // Actualizar dirección visual
+                if (altDx == 1) direction = "right";
+                else if (altDx == -1) direction = "left";
+                else if (altDy == 1) direction = "down";
+                else if (altDy == -1) direction = "up";
+                return; // Movimiento exitoso
             }
+            // Probar la otra dirección perpendicular
+            altDx = originalDy;
+            altDy = -originalDx;
         }
     }
 
@@ -241,6 +241,10 @@ public class Enemy extends Entity {
     }
 
     private void checkPlayerCollision(Player player) {
+        // Si el jugador es invulnerable, ignorar colisiones dañinas
+        if (player.isInvulnerable()) {
+            return;
+        }
         Rectangle enemyRect = new Rectangle(x, y, gp.tileSize, gp.tileSize);
         Rectangle playerRect = new Rectangle(player.x, player.y, gp.tileSize, gp.tileSize);
 
@@ -349,5 +353,28 @@ public class Enemy extends Entity {
 
     public static void resetEnemySeed() {
         enemyRand = new java.util.Random(ENEMY_SEED);
+    }
+
+    /** Reset cached AI/pathfinding state to avoid lag or stuck movement after relocation. */
+    public void resetAI() {
+        bfsFrameCounter = 0;
+        bfsNextDx = 0;
+        bfsNextDy = 0;
+        direction = "down";
+        patrolCounter = 0; // Reinicia también el contador de patrulla
+    }
+
+    /** Immediately recompute next movement step towards the player. */
+    public void replanTowards(Player player) {
+        try {
+            int[] step = chasePlayerBFSGetStep(player);
+            bfsNextDy = step[0];
+            bfsNextDx = step[1];
+            // set a direction hint
+            if (bfsNextDx == 1) direction = "right";
+            else if (bfsNextDx == -1) direction = "left";
+            else if (bfsNextDy == 1) direction = "down";
+            else if (bfsNextDy == -1) direction = "up";
+        } catch (Throwable ignored) { /* keep safe defaults */ }
     }
 }

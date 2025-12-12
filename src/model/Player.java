@@ -1,7 +1,7 @@
-package entity;
+package model;
 
-import main.GamePanel;
-import main.KeyHandler;
+import view.GamePanel;
+import controller.KeyHandler;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -12,6 +12,9 @@ public class Player extends Entity {
     GamePanel gp;
     KeyHandler keyH;
     public int lives = 3;
+    private boolean invulnerable = false;
+    private int invulnerableCounter = 0;
+    private static final int INVULNERABLE_TIME_FRAMES = 60; // ~1s at 60 FPS
 
     public Player(GamePanel gp, KeyHandler keyH) {
         this.gp = gp;
@@ -55,14 +58,14 @@ public class Player extends Entity {
 
     public void getPlayerImage(){
     try {
-        up1 = loadImage("/player/up1.png", "src/res/player/up1.png");
-        up2 = loadImage("/player/up2.png", "src/res/player/up2.png");
-        down1 = loadImage("/player/down1.png", "src/res/player/down1.png");
-        down2 = loadImage("/player/down2.png", "src/res/player/down2.png");
-        left1 = loadImage("/player/left1.png", "src/res/player/left1.png");
-        left2 = loadImage("/player/left2.png", "src/res/player/left2.png");
-        right1 = loadImage("/player/right1.png", "src/res/player/right1.png");
-        right2 = loadImage("/player/right2.png", "src/res/player/right2.png");
+        up1 = ImageIO.read(getClass().getResourceAsStream("/res/player/up1.png"));
+        up2 = ImageIO.read(getClass().getResourceAsStream("/res/player/up2.png"));
+        down1 = ImageIO.read(getClass().getResourceAsStream("/res/player/down1.png"));
+        down2 = ImageIO.read(getClass().getResourceAsStream("/res/player/down2.png"));
+        left1 = ImageIO.read(getClass().getResourceAsStream("/res/player/left1.png"));
+        left2 = ImageIO.read(getClass().getResourceAsStream("/res/player/left2.png"));
+        right1 = ImageIO.read(getClass().getResourceAsStream("/res/player/right1.png"));
+        right2 = ImageIO.read(getClass().getResourceAsStream("/res/player/right2.png"));
 
     } catch (Exception e) {
         e.printStackTrace();
@@ -145,6 +148,13 @@ public class Player extends Entity {
         if (lives <= 0 || gp.gameState == gp.GAME_OVER_STATE) {
             return;
         }
+
+        // Reducir invulnerabilidad si está activa
+        if (invulnerable) {
+            if (invulnerableCounter > 0) invulnerableCounter--;
+            else invulnerable = false;
+        }
+
         int newX = x;
         int newY = y;
 
@@ -239,22 +249,25 @@ public class Player extends Entity {
         direction = "down";
         spriteNum = 1;
         spriteCounter = 0;
+        invulnerable = false;
+        invulnerableCounter = 0;
     }
 
     public void takeDamage() {
+        // Manejo de vidas y game over sin alterar el resto del flujo
+        if (invulnerable) return;
         if (lives > 0) {
             lives--;
             if (lives <= 0) {
                 lives = 0;
-                gp.gameOver();
+                if (gp != null) gp.gameOver();
             } else {
-                // Solo reiniciar la posición del jugador, NO cambiar el estado del juego
-                setToStart();
-                // Asegura que el estado siga en PLAY_STATE
-                if (gp.gameState != gp.PLAY_STATE) {
-                    gp.gameState = gp.PLAY_STATE;
-                }
+                if (gp != null) gp.restartLevel();
             }
         }
+    }
+
+    public boolean isInvulnerable() {
+        return invulnerable;
     }
 }

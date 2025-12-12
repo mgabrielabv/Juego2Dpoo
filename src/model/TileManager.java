@@ -1,6 +1,6 @@
-package tile;
+package model;
 
-import main.GamePanel;
+import view.GamePanel;
 import java.awt.image.BufferedImage;
 import java.awt.*;
 import java.util.Random;
