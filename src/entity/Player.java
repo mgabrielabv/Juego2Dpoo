@@ -11,8 +11,7 @@ public class Player extends Entity {
 
     GamePanel gp;
     KeyHandler keyH;
-
-
+    public int lives = 3;
 
     public Player(GamePanel gp, KeyHandler keyH) {
         this.gp = gp;
@@ -24,10 +23,48 @@ public class Player extends Entity {
     public void setDefaultValues() {
         x = 100;
         y = 100;
+        try {
+            int[][] map = (gp != null) ? gp.getMap() : null;
+            if (map != null) {
+                outer:
+                for (int r = 0; r < map.length; r++) {
+                    for (int c = 0; c < map[0].length; c++) {
+                        if (map[r][c] == 0) {
+                            int ox = gp.getTileManager().getOffsetX();
+                            int oy = gp.getTileManager().getOffsetY();
+                            x = ox + c * gp.tileSize;
+                            y = oy + r * gp.tileSize;
+                            break outer;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         speed = 4;
         direction="down";
 
     }
+
+    public void setToStart() {
+        try {
+            int[][] map = (gp != null) ? gp.getMap() : null;
+            if (map != null) {
+                for (int r = 0; r < map.length; r++) {
+                    for (int c = 0; c < map[0].length; c++) {
+                        if (map[r][c] == 0) {
+                            int ox = gp.getTileManager().getOffsetX();
+                            int oy = gp.getTileManager().getOffsetY();
+                            x = ox + c * gp.tileSize;
+                            y = oy + r * gp.tileSize;
+                            direction = "down";
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
     public void getPlayerImage(){
     try {
         up1 = loadImage("/player/up1.png", "src/res/player/up1.png");
@@ -43,7 +80,7 @@ public class Player extends Entity {
         e.printStackTrace();
     }
     }
-    // Helper: try classpath resource, then try multiple disk locations and searching parent dirs
+
     private BufferedImage loadImage(String resourcePath, String diskRelativePath) {
         try {
             java.io.InputStream is = getClass().getResourceAsStream(resourcePath);
@@ -59,17 +96,14 @@ public class Player extends Entity {
         } catch (Exception ignored) {
         }
 
-        // 2) try several likely disk locations relative to working directory
         String cwd = System.getProperty("user.dir");
         String[] candidates = new String[] {
                 diskRelativePath,
-                // common project layouts
                 "src/res/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
                 "res/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
                 "src/" + resourcePath.substring(1),
                 "res/" + resourcePath.substring(1),
                 "player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
-                // IntelliJ output location
                 "out/production/2Djavavideogame/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1),
                 "out/production/2Djavavideogame/res/player/" + resourcePath.substring(resourcePath.lastIndexOf('/')+1)
         };
@@ -83,7 +117,6 @@ public class Player extends Entity {
             } catch (Exception ignored) {}
         }
 
-        // 3) search upwards from cwd for the relative path (covers running from subfolders)
         String[] searchRelatives = new String[] {"src/res/player/","res/player/","player/"};
         java.io.File dir = new java.io.File(cwd);
         while (dir != null) {
@@ -102,28 +135,56 @@ public class Player extends Entity {
         return null;
     }
 
+    private boolean canMoveTo(int newX, int newY) {
+        int[][] corners = {
+                {newX, newY},
+                {newX + gp.tileSize - 1, newY},
+                {newX, newY + gp.tileSize - 1},
+                {newX + gp.tileSize - 1, newY + gp.tileSize - 1}
+        };
+
+        for (int[] corner : corners) {
+            int mapCol = gp.getTileManager().screenToMapCol(corner[0]);
+            int mapRow = gp.getTileManager().screenToMapRow(corner[1]);
+            if (mapRow < 0 || mapRow >= gp.getMap().length || mapCol < 0 || mapCol >= gp.getMap()[0].length) return false;
+            if (gp.getTileManager().isCollision(mapRow, mapCol)) return false;
+        }
+        return true;
+    }
+
     public void update() {
+
+        int newX = x;
+        int newY = y;
 
         if (keyH.upPressed)
         {
             direction="up";
-            y -= speed;
+            newY -= speed;
         }
         else if (keyH.downPressed)
         {
             direction="down";
-            y += speed;
+            newY += speed;
         }
         else if (keyH.leftPressed)
         {
             direction="left";
-            x -= speed;
+            newX -= speed;
         }
         else if (keyH.rightPressed)
         {
             direction="right";
-            x += speed;
+            newX += speed;
         }
+
+        boolean canMove = canMoveTo(newX, newY);
+
+        if (canMove) {
+            x = newX;
+            y = newY;
+        }
+
         spriteCounter++;
         if (spriteCounter>10){
             if (spriteNum==1){
@@ -171,6 +232,30 @@ public class Player extends Entity {
                 }
                 break;
         }
-        g2.drawImage(image, x, y, gp.tileSize, gp.tileSize, null);
+        if (image != null) {
+            g2.drawImage(image, x, y, gp.tileSize, gp.tileSize, null);
+        } else {
+            g2.setColor(Color.MAGENTA);
+            g2.fillRect(x, y, gp.tileSize, gp.tileSize);
+            g2.setColor(Color.BLACK);
+            g2.drawString("P", x + gp.tileSize/2 - 4, y + gp.tileSize/2 + 4);
+        }
+    }
+
+    public void reset() {
+        lives = 3;
+        setToStart();
+        direction = "down";
+        spriteNum = 1;
+        spriteCounter = 0;
+    }
+
+    public void takeDamage() {
+        lives--;
+        if (lives <= 0) {
+            gp.gameOver();
+        } else {
+            setToStart();
+        }
     }
 }

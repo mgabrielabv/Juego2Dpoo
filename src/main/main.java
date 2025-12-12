@@ -1,22 +1,29 @@
 package main;
+
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
 public class main {
     public static void main(String[] args) {
-        JFrame window=new JFrame();
-        window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        window.setResizable(false);
-        window.setTitle("Game for POO");
+        SwingUtilities.invokeLater(() -> {
+            System.out.println("[main] Iniciando juego en EDT");
 
-        GamePanel gamePanel=new GamePanel();
-        window.add(gamePanel);
+            JFrame window = new JFrame();
+            window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            window.setResizable(false);
+            window.setTitle("");
 
-        window.pack();
+            GamePanel gamePanel = new GamePanel();
+            window.add(gamePanel);
 
-        window.setLocationRelativeTo(null);
-        window.setVisible(true);
+            window.pack();
+            window.setLocationRelativeTo(null);
+            window.setVisible(true);
 
-        gamePanel.startGameThread();
+            gamePanel.requestFocusInWindow();
+            gamePanel.startGameThread();
+
+            System.out.println("[main] Ventana visible y juego iniciado");
+        });
     }
-
 }
